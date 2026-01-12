@@ -7,7 +7,7 @@
   <title>My Mapbox App — Sidebar + Map</title>
 
   <!-- Mapbox GL JS CSS (LOCAL) -->
-  <link href="./mapbox-gl.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="./mapbox-gl.css">
 
   <style>
     html, body { margin:0; height:100%; }
@@ -69,7 +69,6 @@
       console.error('Mapbox GL JS failed to load from local file (mapboxgl.js).');
       showBanner('Library not loaded. The local file “mapboxgl.js” could not be loaded. Check filename/path and try reloading.');
     } else {
-      // Token + map init
       mapboxgl.accessToken = ACCESS_TOKEN;
 
       let map;
@@ -85,25 +84,22 @@
         showBanner('Failed to initialize Mapbox GL. Check your local files and script tag.');
       }
 
-      // Basic controls
       map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-      // Diagnostics to help with blank-map issues
       map.on('error', (e) => {
         const err = e && e.error ? e.error : e;
         console.error('Mapbox error:', err);
-        // Surface common blocked-network issues (tiles/styles)
+        // If tiles/styles network is blocked, show a hint.
         if (String(err).toLowerCase().includes('network') || String(err).toLowerCase().includes('blocked')) {
-          showBanner('Network request blocked. Your firewall or browser privacy settings may be blocking Mapbox style/tiles. The library is local, but styles/tiles still load from Mapbox online.');
+          showBanner('Network request blocked. The library is local, but styles/tiles still load from Mapbox online and may be blocked by firewall.');
         }
       });
 
-      // Optional: click interaction on a point layer to populate sidebar + popup
       map.on('load', () => {
         console.log('Style loaded:', (map.getStyle() && map.getStyle().name) || STYLE_URL);
 
         if (!map.getLayer(MARKER_LAYER)) {
-          console.warn(`Layer not found: ${MARKER_LAYER}. Open Studio → Layers and copy the exact ID.`);
+          console.warn(`Layer not found: ${MARKER_LAYER}. Check the layer ID in your style.`);
           showBanner(`Layer not found: “${MARKER_LAYER}”. Check the layer ID in your style.`);
           return;
         }
