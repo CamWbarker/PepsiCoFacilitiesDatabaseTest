@@ -1,0 +1,203 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>My Mapbox App — Sidebar + Map</title>
+
+  <!-- Silence favicon 404 on GitHub Pages -->
+  <link rel="icon" href="data:," />
+
+  <!-- Mapbox GL JS CSS (jsDelivr CDN — NOT api.mapbox.com) -->
+  <link href="https://cdn.jsdelivr.net/npm/mapbox-gl@2.16.1/dist/mapbox-gl.css" rel="stylesheet"/>
+
+  <style>
+    html, body { margin:0; height:100%; }
+    /* Layout: left sidebar, map fills the rest */
+    #map { position:absolute; top:0; bottom:0; right:0; left:320px; }
+    #sidebar {
+      position:absolute; top:0; left:0; width:320px; height:100%;
+      padding:16px; box-sizing:border-box;
+      background:#fff; border-right:1px solid #e5e5e5; overflow:auto;
+      font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    #sidebar h2 { margin:0 0 8px; font-size:20px; }
+    .mapboxgl-popup-content { font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .mapboxgl-popup-content h3 { margin:0 0 6px; font-size:16px; }
+
+    /* Status banner to surface CDN / style-block issues */
+    #status {
+      position:fixed; z-index:9999; top:8px; right:8px;
+      max-width:420px; padding:10px 12px; border-radius:6px;
+      font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:#222; background:#fff9c4; border:1px solid #f3d55b; box-shadow:0 2px 10px rgba(0,0,0,0.08);
+      display:none;
+    }
+    #status.error { background:#ffe9e9; border-color:#ffb3b3; }
+    #status.ok { background:#e6ffea; border-color:#9ae6b4; }
+    #status .title { font-weight:700; margin-right:6px; }
+    #status .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+
+  <!-- Status banner (shown only when needed) -->
+  <div id="status"></div>
+
+  <!-- Sidebar + Map containers -->
+  <div id="sidebar">
+    <h2>Landmark details</h2>
+    <div class="meta">Click a marker to view details.</div>
+  </div>
+  <div id="map"></div>
+
+  <!-- Mapbox GL JS (jsDelivr CDN — NOT api.mapbox.com) -->
+  <script src="https://cdn.jsdelivr.net/npm/mapbox-gl@2.16.1/dist/mapbox-gl.js"></script>
+
+  <script>
+    // ===== CONFIG: replace with your values =====
+    const ACCESS_TOKEN = 'pk.eyJ1IjoiY2Ftd2JhcmtlciIsImEiOiJjbWs1dWcxcW0wbGxxM2dwbG81NnM2enRzIn0.oCVZ_D73Rhc83uZMNjUN1g';
+    const STYLE_URL    = 'mapbox://styles/camwbarker/cmk5vnux1003201s9fb07d1ck';
+    const MARKER_LAYER = 'dog-spas-markers'; // <- exact layer ID from Studio for click interaction
+    const CENTER       = [-79.383, 43.653];  // Toronto
+    const ZOOM         = 10;
+    // ===========================================
+
+    const statusEl = document.getElementById('status');
+    function showStatus(msg, type='warn') {
+      statusEl.className = type === 'error' ? 'error' : type === 'ok' ? 'ok' : '';
+      statusEl.innerHTML = msg;
+      statusEl.style.display = 'block';
+    }
+    function hideStatus() {
+      statusEl.style.display = 'none';
+    }
+
+    // Helper: convert mapbox:// style URL to the HTTPS URL we can probe with fetch
+    function styleUrlToHttp(styleUrl, token) {
+      if (styleUrl.startsWith('mapbox://styles/')) {
+        const path = styleUrl.replace('mapbox://styles/', 'styles/v1/');
+        return `https://api.mapbox.com/${path}?access_token=${encodeURIComponent(token)}`;
+      }
+      // If already https://api.mapbox.com/... append token if needed
+      const hasQuery = styleUrl.includes('?');
+      return hasQuery
+        ? `${styleUrl}&access_token=${encodeURIComponent(token)}`
+        : `${styleUrl}?access_token=${encodeURIComponent(token)}`;
+    }
+
+    // 1) Confirm the library actually loaded (from jsDelivr)
+    if (!window.mapboxgl) {
+      showStatus(
+        `<span class="title">Library not loaded.</span>
+         Could not load <span class="mono">mapbox-gl</span> from jsDelivr CDN.
+         Check extensions/firewall and try reloading.`,
+        'error'
+      );
+      throw new Error('mapbox-gl failed to load from jsDelivr');
+    }
+
+    // 2) Probe your Mapbox style URL before creating the map.
+    //    If your network blocks api.mapbox.com, this will fail fast with a clear message.
+    const styleProbeUrl = styleUrlToHttp(STYLE_URL, ACCESS_TOKEN);
+    fetch(styleProbeUrl, { mode: 'cors' })
+      .then(resp => {
+        if (!resp.ok) {
+          throw new Error(`Style HTTP ${resp.status} — ${resp.statusText}`);
+        }
+        return resp.json();
+      })
+      .then(styleJson => {
+        hideStatus(); // styles reachable — proceed
+
+        // 3) Init Map (library came from jsDelivr; styles/tiles/fonts still from api.mapbox.com)
+        mapboxgl.accessToken = ACCESS_TOKEN;
+
+        const map = new mapboxgl.Map({
+          container: 'map',
+          style: STYLE_URL,
+          center: CENTER,
+          zoom: ZOOM
+        });
+
+        // Surface runtime errors (e.g., tiles/fonts blocked)
+        map.on('error', (e) => {
+          console.error('Mapbox runtime error:', e && e.error ? e.error : e);
+          showStatus(
+            `<span class="title">Map runtime error.</span>
+             Some requests to <span class="mono">api.mapbox.com</span> failed (tiles/fonts/styles).
+             If this is a corporate network, ask IT to allowlist:
+             <span class="mono">api.mapbox.com</span>, <span class="mono">*.tiles.mapbox.com</span>, <span class="mono">events.mapbox.com</span>.`,
+            'error'
+          );
+        });
+
+        // Optional controls
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+        // 4) Your original click → popup → sidebar logic
+        map.on('load', () => {
+          console.log('Style loaded:', map.getStyle()?.name ?? STYLE_URL);
+
+          if (!map.getLayer(MARKER_LAYER)) {
+            console.warn(`Layer not found: ${MARKER_LAYER}. Open Studio → Layers and copy the exact ID.`);
+            showStatus(
+              `<span class="title">Layer not found:</span> <span class="mono">${MARKER_LAYER}</span>.
+               Open Mapbox Studio → your style → Layers, and copy the exact layer ID.`
+            );
+            return;
+          }
+
+          const popup = new mapboxgl.Popup({ offset: 12, closeOnClick: false });
+          const sidebar = document.getElementById('sidebar');
+
+          map.on('click', MARKER_LAYER, (e) => {
+            const f = e.features && e.features[0];
+            if (!f) return;
+
+            const coords = f.geometry.type === 'Point'
+              ? f.geometry.coordinates.slice()
+              : [e.lngLat.lng, e.lngLat.lat];
+            const p = f.properties || {};
+
+            popup
+              .setLngLat(coords)
+              .setHTML(`
+                <div>
+                  <h3>${p.name ?? 'Unknown'}</h3>
+                  <div><strong>Address:</strong> ${p.address ?? '—'}</div>
+                  <div><strong>Phone:</strong> ${p.phone ?? '—'}</div>
+                  <div><strong>Rating:</strong> ${p.rating ?? '—'}</div>
+                </div>
+              `)
+              .addTo(map);
+
+            map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 13), speed: 0.6 });
+
+            sidebar.innerHTML = `
+              <h2>${p.name ?? 'Location'}</h2>
+              <div><strong>Address:</strong> ${p.address ?? '—'}</div>
+              <div><strong>Phone:</strong> ${p.phone ?? '—'}</div>
+              <div><strong>Rating:</strong> ${p.rating ?? '—'}</div>
+            `;
+          });
+
+          map.on('mouseenter', MARKER_LAYER, () => map.getCanvas().style.cursor = 'pointer');
+          map.on('mouseleave', MARKER_LAYER, () => map.getCanvas().style.cursor = '');
+        });
+      })
+      .catch(err => {
+        console.error('Style probe failed:', err);
+        showStatus(
+          `<span class="title">Network is blocking Mapbox styles.</span>
+           Could not reach <span class="mono">api.mapbox.com</span> to load your style.
+           Ask IT to allowlist:
+           <span class="mono">api.mapbox.com</span>, <span class="mono">*.tiles.mapbox.com</span>, <span class="mono">events.mapbox.com</span>.
+           <br><br><strong>Details:</strong> <span class="mono">${(err && err.message) || err}</span>`,
+          'error'
+        );
+      });
+  </script>
+</body>
+</html>
