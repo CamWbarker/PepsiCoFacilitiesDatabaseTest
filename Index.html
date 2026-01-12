@@ -7,7 +7,7 @@
   <title>My Mapbox App — Sidebar + Map</title>
 
   <!-- Mapbox GL JS CSS (LOCAL) -->
-  <link href="mapbox-gl.css" rel="stylesheet"/>
+  <link href="./mapbox-gl.css" rel="stylesheet"/>
 
   <style>
     html, body { margin:0; height:100%; }
@@ -17,11 +17,23 @@
       position:absolute; top:0; left:0; width:320px; height:100%;
       padding:16px; box-sizing:border-box;
       background:#fff; border-right:1px solid #e5e5e5; overflow:auto;
-      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial;
     }
     #sidebar h2 { margin:0 0 8px; font-size:20px; }
-    .mapboxgl-popup-content { font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .mapboxgl-popup-content { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
     .mapboxgl-popup-content h3 { margin:0 0 6px; font-size:16px; }
+
+    /* Status banner (shown only when we detect load issues) */
+    #status-banner {
+      position: absolute; top: 12px; left: 340px;
+      background: #fff3cd; border: 1px solid #f2d788; color: #7a5b00;
+      padding: 10px 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      display: none;
+      z-index: 9999;
+      max-width: 520px;
+    }
+    #status-banner.show { display: block; }
   </style>
 </head>
 <body>
@@ -32,42 +44,67 @@
     <div class="meta">Click a marker to view details.</div>
   </div>
   <div id="map"></div>
+  <div id="status-banner" role="alert"></div>
 
   <!-- Mapbox GL JS script (LOCAL) -->
-  <script src="mapboxgl.js"></script>
+  <script src="./mapboxgl.js"></script>
 
   <script>
     // ===== CONFIG: replace with your values =====
     const ACCESS_TOKEN = 'pk.eyJ1IjoiY2Ftd2JhcmtlciIsImEiOiJjbWs1dWcxcW0wbGxxM2dwbG81NnM2enRzIn0.oCVZ_D73Rhc83uZMNjUN1g';
     const STYLE_URL    = 'mapbox://styles/camwbarker/cmk5vnux1003201s9fb07d1ck';
-    const MARKER_LAYER = 'dog-spas-markers'; // <- set to your exact layer ID from Studio (if you want click interaction)
-    const CENTER       = [-79.383, 43.653];  // Toronto (example)
+    const MARKER_LAYER = 'dog-spas-markers'; // <- layer ID in your style (case-sensitive)
+    const CENTER       = [-79.383, 43.653];   // Toronto
     const ZOOM         = 10;
     // ===========================================
 
+    const statusBanner = document.getElementById('status-banner');
+    const showBanner = (msg) => {
+      statusBanner.textContent = msg;
+      statusBanner.classList.add('show');
+    };
+
+    // Confirm the library loaded from local file
     if (!window.mapboxgl) {
-      console.error('Mapbox GL JS failed to load. Check the local file paths.');
+      console.error('Mapbox GL JS failed to load from local file (mapboxgl.js).');
+      showBanner('Library not loaded. The local file “mapboxgl.js” could not be loaded. Check filename/path and try reloading.');
     } else {
+      // Token + map init
       mapboxgl.accessToken = ACCESS_TOKEN;
 
-      const map = new mapboxgl.Map({
-        container: 'map',
-        style: STYLE_URL,
-        center: CENTER,
-        zoom: ZOOM
-      });
+      let map;
+      try {
+        map = new mapboxgl.Map({
+          container: 'map',
+          style: STYLE_URL,
+          center: CENTER,
+          zoom: ZOOM
+        });
+      } catch (err) {
+        console.error('Map init error:', err);
+        showBanner('Failed to initialize Mapbox GL. Check your local files and script tag.');
+      }
 
+      // Basic controls
       map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
+      // Diagnostics to help with blank-map issues
       map.on('error', (e) => {
-        console.error('Mapbox error:', e && e.error ? e.error : e);
+        const err = e && e.error ? e.error : e;
+        console.error('Mapbox error:', err);
+        // Surface common blocked-network issues (tiles/styles)
+        if (String(err).toLowerCase().includes('network') || String(err).toLowerCase().includes('blocked')) {
+          showBanner('Network request blocked. Your firewall or browser privacy settings may be blocking Mapbox style/tiles. The library is local, but styles/tiles still load from Mapbox online.');
+        }
       });
 
+      // Optional: click interaction on a point layer to populate sidebar + popup
       map.on('load', () => {
-        console.log('Style loaded:', map.getStyle()?.name ?? STYLE_URL);
+        console.log('Style loaded:', (map.getStyle() && map.getStyle().name) || STYLE_URL);
 
         if (!map.getLayer(MARKER_LAYER)) {
           console.warn(`Layer not found: ${MARKER_LAYER}. Open Studio → Layers and copy the exact ID.`);
+          showBanner(`Layer not found: “${MARKER_LAYER}”. Check the layer ID in your style.`);
           return;
         }
 
