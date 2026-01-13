@@ -1,0 +1,36 @@
+name: Add Mapbox GL UMD files
+
+on:
+  workflow_dispatch: {}  # Run manually from the Actions tab
+
+jobs:
+  fetch-umd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install mapbox-gl
+        run: |
+          npm init -y
+          npm install mapbox-gl@2.16.1
+
+      - name: Copy UMD bundles to repo root
+        run: |
+          cp node_modules/mapbox-gl/dist/mapbox-gl.js ./mapbox-gl.js
+          cp node_modules/mapbox-gl/dist/mapbox-gl.css ./mapbox-gl.css
+          ls -lh mapbox-gl.js mapbox-gl.css
+
+      - name: Commit files to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mapbox-gl.js mapbox-gl.css
+          git commit -m "Add Mapbox GL UMD JS/CSS from npm dist via GitHub Actions" || echo "No changes to commit"
+          git push
+``
