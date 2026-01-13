@@ -1,0 +1,71 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>My Mapbox App — Sidebar + Map</title>
+
+  <!-- Local Mapbox GL CSS (UMD bundle) -->
+  <link rel="stylesheet" href="./mapbox-gl.css"/>
+
+  <style>
+    html, body { margin:0; height:100%; }
+    #map { position:absolute; top:0; bottom:0; right:0; left:320px; }
+    #sidebar {
+      position:absolute; top:0; left:0; width:320px; height:100%;
+      padding:16px; box-sizing:border-box;
+      background:#fff; border-right:1px solid #e5e5e5; overflow:auto;
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    }
+    #sidebar h2 { margin:0 0 8px; font-size:20px; }
+    .mapboxgl-popup-content { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
+    .mapboxgl-popup-content h3 { margin:0 0 6px; font-size:16px; }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>Landmark details</h2>
+    <div class="meta">Click a marker to view details.</div>
+  </div>
+  <div id="map"></div>
+
+  <!-- Local Mapbox GL JS (UMD bundle) -->
+  <script src="./mapbox-gl.js"></script>
+
+  <script>
+    // ===== CONFIG =====
+    const ACCESS_TOKEN = 'pk.eyJ1IjoiY2Ftd2JhcmtlciIsImEiOiJjbWs1dWcxcW0wbGxxM2dwbG81NnM2enRzIn0.oCVZ_D73Rhc83uZMNjUN1g';
+    const STYLE_URL    = 'mapbox://styles/camwbarker/cmk5vnux1003201s9fb07d1ck';
+    const MARKER_LAYER = 'dog-spas-markers';
+    const CENTER       = [-79.383, 43.653];
+    const ZOOM         = 10;
+    // ==================
+
+    if (!window.mapboxgl) {
+      console.error('Mapbox GL JS did not load (window.mapboxgl is undefined).');
+      alert('Library not loaded. Ensure mapbox-gl.js is the UMD bundle from /dist and present in the same folder.');
+    } else {
+      mapboxgl.accessToken = ACCESS_TOKEN;
+
+      const map = new mapboxgl.Map({
+        container: 'map',
+        style: STYLE_URL,
+        center: CENTER,
+        zoom: ZOOM
+      });
+
+      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+      map.on('load', () => {
+        if (!map.getLayer(MARKER_LAYER)) {
+          console.warn(`Layer not found: ${MARKER_LAYER}`);
+        }
+      });
+
+      map.on('error', (e) => console.error('Mapbox error:', e.error || e));
+    }
+  </script>
+</body>
+</html>
